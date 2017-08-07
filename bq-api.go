@@ -46,14 +46,14 @@ func getTables(client *bigquery.Client, datasetName string) { //(projects *bigqu
 
   genericSchema := bigquery.Schema{
     &bigquery.FieldSchema{Name: "desc", Required: true, Type: bigquery.StringFieldType},
-    &bigquery.FieldSchema{Name: "keywords", Required: true, Type: bigquery.StringFieldType},
+    &bigquery.FieldSchema{Name: "keywords", Required: true, Repeated: true, Type: bigquery.StringFieldType},
   }
 
   sampleSchema := bigquery.Schema{
     &bigquery.FieldSchema{Name: "name", Required: true, Type: bigquery.StringFieldType},
-    &bigquery.FieldSchema{Name: "files", Required: true, Type: bigquery.StringFieldType},
+    &bigquery.FieldSchema{Name: "files", Required: true, Repeated: true, Type: bigquery.StringFieldType},
     &bigquery.FieldSchema{Name: "desc", Required: true, Type: bigquery.StringFieldType},
-    &bigquery.FieldSchema{Name: "keywords", Required: true, Type: bigquery.StringFieldType},
+    &bigquery.FieldSchema{Name: "keywords", Required: true, Repeated: true, Type: bigquery.StringFieldType},
   }
 
   ngsRawSchema := bigquery.Schema{
@@ -75,11 +75,19 @@ func getTables(client *bigquery.Client, datasetName string) { //(projects *bigqu
   projectSchema := bigquery.Schema{
     &bigquery.FieldSchema{Name: "name", Required: true, Type: bigquery.StringFieldType},
     &bigquery.FieldSchema{Name: "desc", Required: true, Type: bigquery.StringFieldType},
+    &bigquery.FieldSchema{Name: "owner", Required: true, Type: bigquery.StringFieldType},
+    &bigquery.FieldSchema{Name: "users", Required: false, Repeated: true, Type: bigquery.StringFieldType},
     &bigquery.FieldSchema{Name: "type", Required: true, Type: bigquery.RecordFieldType, Schema: typeSchema},
   }
 
   users := client.Dataset(datasetName).Table("user")
-//  userSchema := 
+
+  userSchema := bigquery.Schema{
+    &bigquery.FieldSchema{Name: "name", Required: true, Type: bigquery.StringFieldType},
+    &bigquery.FieldSchema{Name: "email", Required: true, Type: bigquery.StringFieldType},
+    &bigquery.FieldSchema{Name: "lab", Required: true, Repeated: true, Type: bigquery.StringFieldType},
+  }
+
   if _, err := projects.Metadata(CONTEXT); err != nil {
     if err := projects.Create(CONTEXT, projectSchema); err != nil {
       log.Fatalf("Failed to create 'projects' table: %v", err)
@@ -87,7 +95,7 @@ func getTables(client *bigquery.Client, datasetName string) { //(projects *bigqu
   }
 
   if _, err := users.Metadata(CONTEXT); err != nil {
-    if err := users.Create(CONTEXT); err != nil {
+    if err := users.Create(CONTEXT, userSchema); err != nil {
       log.Fatalf("Failed to create 'users' table: %v", err)
     }
   }
