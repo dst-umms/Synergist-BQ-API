@@ -15,16 +15,12 @@ import (
 )
 
 var CONTEXT = context.Background()
-const BQ_DATASET string = "development" 
+const BQ_DATASET string = "devel"
 
 func main() {
   client := getBqClient()
-  getTables(client, BQ_DATASET)
-  //following 2 lines are hacks - need to refactor as table references being returned from getTables function
-  projects := client.Dataset("DATASET").Table("project")
-  users := client.Dataset("DATASET").Table("user")
-  fmt.Println(projects, users)
-  loadProjectData()
+  projects, _ := getTables(client, BQ_DATASET)
+  loadProjectData(projects)
   http.ListenAndServe(":8080", nil)
 }
 
@@ -37,7 +33,7 @@ func getBqClient() (*bigquery.Client) {
   return client
 }
 
-func getTables(client *bigquery.Client, datasetName string) { //(projects *bigquery.Client.Dataset.Table, users *bigquery.Client.Dataset.Table) {
+func getTables(client *bigquery.Client, datasetName string) (*bigquery.Table, *bigquery.Table) {
   if  _, err := client.Dataset(datasetName).Metadata(CONTEXT); err != nil {
     if err := client.Dataset(datasetName).Create(CONTEXT); err != nil {
       log.Fatalf("Failed to create dataset: %v", err)
@@ -45,54 +41,9 @@ func getTables(client *bigquery.Client, datasetName string) { //(projects *bigqu
   }
 
   projects := client.Dataset(datasetName).Table("project")
-
-  emptySchema := bigquery.Schema{
-    &bigquery.FieldSchema{Name: "empty", Required: false, Type: bigquery.StringFieldType},
-  }
-
-  genericSchema := bigquery.Schema{
-    &bigquery.FieldSchema{Name: "desc", Required: true, Type: bigquery.StringFieldType},
-    &bigquery.FieldSchema{Name: "keywords", Required: true, Repeated: true, Type: bigquery.StringFieldType},
-  }
-
-  sampleSchema := bigquery.Schema{
-    &bigquery.FieldSchema{Name: "name", Required: true, Type: bigquery.StringFieldType},
-    &bigquery.FieldSchema{Name: "files", Required: true, Repeated: true, Type: bigquery.StringFieldType},
-    &bigquery.FieldSchema{Name: "desc", Required: true, Type: bigquery.StringFieldType},
-    &bigquery.FieldSchema{Name: "keywords", Required: true, Repeated: true, Type: bigquery.StringFieldType},
-  }
-
-  ngsRawSchema := bigquery.Schema{
-    &bigquery.FieldSchema{Name: "platform", Required: true, Type: bigquery.RecordFieldType, Schema: genericSchema},
-    &bigquery.FieldSchema{Name: "libprep", Required: true, Type: bigquery.RecordFieldType, Schema: genericSchema},
-    &bigquery.FieldSchema{Name: "sample", Required: true, Type: bigquery.RecordFieldType, Schema: sampleSchema},
-  }
-
-  ngsSchema := bigquery.Schema{
-    &bigquery.FieldSchema{Name: "rawdata", Required: false, Type: bigquery.RecordFieldType, Schema: ngsRawSchema},
-    &bigquery.FieldSchema{Name: "analysis", Required: false, Type: bigquery.RecordFieldType, Schema: emptySchema},
-  }
-
-  typeSchema := bigquery.Schema{
-    &bigquery.FieldSchema{Name: "ngs", Required: false, Type: bigquery.RecordFieldType, Schema: ngsSchema},
-    &bigquery.FieldSchema{Name: "imaging", Required: false, Type: bigquery.RecordFieldType, Schema: emptySchema},
-  }
-
-  projectSchema := bigquery.Schema{
-    &bigquery.FieldSchema{Name: "name", Required: true, Type: bigquery.StringFieldType},
-    &bigquery.FieldSchema{Name: "desc", Required: true, Type: bigquery.StringFieldType},
-    &bigquery.FieldSchema{Name: "owner", Required: true, Type: bigquery.StringFieldType},
-    &bigquery.FieldSchema{Name: "users", Required: false, Repeated: true, Type: bigquery.StringFieldType},
-    &bigquery.FieldSchema{Name: "type", Required: true, Type: bigquery.RecordFieldType, Schema: typeSchema},
-  }
-
+  projectSchema, _ :=  bigquery.InferSchema(schema.Project{})
   users := client.Dataset(datasetName).Table("user")
-
-  userSchema := bigquery.Schema{
-    &bigquery.FieldSchema{Name: "name", Required: true, Type: bigquery.StringFieldType},
-    &bigquery.FieldSchema{Name: "email", Required: true, Type: bigquery.StringFieldType},
-    &bigquery.FieldSchema{Name: "lab", Required: false, Repeated: true, Type: bigquery.StringFieldType},
-  }
+  userSchema, _ :=  bigquery.InferSchema(schema.User{})
 
   if _, err := projects.Metadata(CONTEXT); err != nil {
     if err := projects.Create(CONTEXT, projectSchema); err != nil {
@@ -106,10 +57,11 @@ func getTables(client *bigquery.Client, datasetName string) { //(projects *bigqu
     }
   }
 
+  return projects, users
 }
 
 
-func loadProjectData() {
+func loadProjectData(projects *bigquery.Table) {
 
   data := []byte(`
     {
@@ -139,15 +91,18 @@ func loadProjectData() {
           "keywords": ["treatment"],
           "files": ["/path/to/sample2_leftmate.fastq.gz", "/path/to/sample2_rightmate.fastq.gz"]
         }]
-      },
-      "analysis": null
-    },
-    "imaging": null
+      }
+    }
   }
 }
   `)
+  u := projects.Uploader()
 
   var projectData schema.Project
   _ = json.Unmarshal(data, &projectData)
+
+  if err := u.Put(CONTEXT, projectData); err != nil {
+    log.Fatalf("Failed to create client: %v", err)
+  }
   fmt.Println(projectData)
 }
