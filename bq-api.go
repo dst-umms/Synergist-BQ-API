@@ -2,28 +2,30 @@ package main
 
 import (
   "fmt"
-  "log"
+//  "log"
+  "encoding/json"
 
-  "net/http"
+  //"net/http"
 
-  "cloud.google.com/go/bigquery"
-  "golang.org/x/net/context"
+  //"cloud.google.com/go/bigquery"
+  //"golang.org/x/net/context"
 )
 
-var CONTEXT = context.Background()
-const BQ_DATASET string = "development" 
+//var CONTEXT = context.Background()
+//const BQ_DATASET string = "development" 
 
 func main() {
-  client := getBqClient()
+  /*client := getBqClient()
   getTables(client, BQ_DATASET)
   //following 2 lines are hacks - need to refactor as table references being returned from getTables function
   projects := client.Dataset("DATASET").Table("project")
   users := client.Dataset("DATASET").Table("user")
   fmt.Println(projects, users)
-  http.ListenAndServe(":8080", nil)
+  http.ListenAndServe(":8080", nil)*/
+  loadProjectData()
 }
 
-func getBqClient() (*bigquery.Client) {
+/*func getBqClient() (*bigquery.Client) {
   projectID := "synergist-170903"
   client, err := bigquery.NewClient(CONTEXT, projectID)
   if err != nil {
@@ -102,4 +104,76 @@ func getTables(client *bigquery.Client, datasetName string) { //(projects *bigqu
   }
 
 }
+*/
 
+func loadProjectData() {
+
+  type Project struct {
+      Name  string `json:"name"`
+      Desc  string `json:"desc"`
+      Owner string `json:"owner"`
+      Users []string `json:"users"`
+      Type  struct {
+        Ngs     struct {
+          Rawdata  struct {
+            Platform struct {
+              Desc     string   `json:"desc"`
+              Keywords []string `json:"keywords"`
+            } `json:"platform"`
+            Libprep struct {
+              Desc     string   `json:"desc"`
+              Keywords []string `json:"keywords"`
+            } `json:"libprep"`
+            Sample []struct {
+              Name     string   `json:"name"`
+              Desc     string   `json:"desc"`
+              Keywords []string `json:"keywords"`
+              Files    []string `json:"files"`
+            } `json:"sample"`
+          } `json:"rawdata"`
+          Analysis interface{} `json:"analysis"`
+        } `json:"ngs"`
+        Imaging interface{} `json:"imaging"`
+      } `json:"type"`
+    }
+
+  data := []byte(`
+    {
+  "name": "project1",
+  "desc": "project1 description",
+  "owner": "vangalamaheshh@gmail.com",
+  "users": ["uma.vangala@umassmed.edu"],
+  "type": {
+    "ngs": {
+      "rawdata": {
+        "platform": {
+          "desc": "This project used Illumina's sequencing platform",
+          "keywords": ["Illumina", "HiSeq2500", "Deep sequencing core"]
+        },
+        "libprep": {
+          "desc": "We have used Paired end Illumina reagent kit.",
+          "keywords": ["PE", "Paired-End", "Illumina Truseq protocol"]
+        },
+        "sample": [{
+          "name": "sample1",
+          "desc": "sample1 - belongs to control group.",
+          "keywords": ["control"],
+          "files": ["/path/to/sample1_leftmate.fastq.gz", "/path/to/sample1_rightmate.fastq.gz"]
+        }, {
+          "name": "sample2",
+          "desc": "sample2 belongs to treatment group.",
+          "keywords": ["treatment"],
+          "files": ["/path/to/sample2_leftmate.fastq.gz", "/path/to/sample2_rightmate.fastq.gz"]
+        }]
+      },
+      "analysis": null
+    },
+    "imaging": null
+  }
+}
+  `)
+
+  var projectData Project
+  _ = json.Unmarshal(data, &projectData)
+  fmt.Println(projectData)
+}
