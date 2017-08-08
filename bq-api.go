@@ -11,13 +11,14 @@ import (
 )
 
 var CONTEXT = context.Background()
+const BQ_DATASET string = "development" 
 
 func main() {
   client := getBqClient()
-  getTables(client, "synergist_dataset_prod")
+  getTables(client, BQ_DATASET)
   //following 2 lines are hacks - need to refactor as table references being returned from getTables function
-  projects := client.Dataset("synergist_dataset_prod").Table("project")
-  users := client.Dataset("synergist_dataset_prod").Table("user")
+  projects := client.Dataset("DATASET").Table("project")
+  users := client.Dataset("DATASET").Table("user")
   fmt.Println(projects, users)
   http.ListenAndServe(":8080", nil)
 }
@@ -85,7 +86,7 @@ func getTables(client *bigquery.Client, datasetName string) { //(projects *bigqu
   userSchema := bigquery.Schema{
     &bigquery.FieldSchema{Name: "name", Required: true, Type: bigquery.StringFieldType},
     &bigquery.FieldSchema{Name: "email", Required: true, Type: bigquery.StringFieldType},
-    &bigquery.FieldSchema{Name: "lab", Required: true, Repeated: true, Type: bigquery.StringFieldType},
+    &bigquery.FieldSchema{Name: "lab", Required: false, Repeated: true, Type: bigquery.StringFieldType},
   }
 
   if _, err := projects.Metadata(CONTEXT); err != nil {
