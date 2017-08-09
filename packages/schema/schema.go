@@ -23,9 +23,13 @@ type Project struct {
           Files    []string `json:"files"`
         } `json:"sample"`
       } `json:"rawdata"`
-      Analysis struct{} `json:"analysis"`
+      Analysis struct{
+        Info  []string `json:"info"`
+      } `json:"analysis"`
     } `json:"ngs"`
-    Imaging struct{} `json:"imaging"`
+    Imaging struct{
+      Info  []string `json:"info"`
+    } `json:"imaging"`
   } `json:"type"`
 }
 
