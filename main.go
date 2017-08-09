@@ -15,12 +15,14 @@ import (
 )
 
 var CONTEXT = context.Background()
+var projects, users *bigquery.Table
 const BQ_DATASET string = "devel"
 
 func main() {
   client := getBqClient()
-  projects, _ := getTables(client, BQ_DATASET)
-  loadProjectData(projects)
+  projects, users = getTables(client, BQ_DATASET)
+  http.HandleFunc("/LoadProjectData", loadProjectData)
+  http.HandleFunc("/LoadUserData", loadUserData)
   http.ListenAndServe(":8080", nil)
 }
 
@@ -61,48 +63,26 @@ func getTables(client *bigquery.Client, datasetName string) (*bigquery.Table, *b
 }
 
 
-func loadProjectData(projects *bigquery.Table) {
-
-  data := []byte(`
-    {
-  "name": "project1",
-  "desc": "project1 description",
-  "owner": "vangalamaheshh@gmail.com",
-  "users": ["uma.vangala@umassmed.edu"],
-  "type": {
-    "ngs": {
-      "rawdata": {
-        "platform": {
-          "desc": "This project used Illumina's sequencing platform",
-          "keywords": ["Illumina", "HiSeq2500", "Deep sequencing core"]
-        },
-        "libprep": {
-          "desc": "We have used Paired end Illumina reagent kit.",
-          "keywords": ["PE", "Paired-End", "Illumina Truseq protocol"]
-        },
-        "sample": [{
-          "name": "sample1",
-          "desc": "sample1 - belongs to control group.",
-          "keywords": ["control"],
-          "files": ["/path/to/sample1_leftmate.fastq.gz", "/path/to/sample1_rightmate.fastq.gz"]
-        }, {
-          "name": "sample2",
-          "desc": "sample2 belongs to treatment group.",
-          "keywords": ["treatment"],
-          "files": ["/path/to/sample2_leftmate.fastq.gz", "/path/to/sample2_rightmate.fastq.gz"]
-        }]
-      }
-    }
-  }
-}
-  `)
+func loadProjectData(rw http.ResponseWriter, req *http.Request) {
   u := projects.Uploader()
-
+  decoder := json.NewDecoder(req.Body)
   var projectData schema.Project
-  _ = json.Unmarshal(data, &projectData)
-
+  _ = decoder.Decode(&projectData)
   if err := u.Put(CONTEXT, projectData); err != nil {
-    log.Fatalf("Failed to create client: %v", err)
+    log.Fatalf("Failed to load project data: %v", err)
   }
   fmt.Println(projectData)
+  defer req.Body.Close()
+}
+
+func loadUserData(rw http.ResponseWriter, req *http.Request) {
+  u := users.Uploader()
+  decoder := json.NewDecoder(req.Body)
+  var userData schema.User
+  _ = decoder.Decode(&userData)
+  if err := u.Put(CONTEXT, userData); err != nil {
+    log.Fatalf("Failed to load user data: %v", err)
+  }
+  fmt.Println(userData)
+  defer req.Body.Close()
 }
