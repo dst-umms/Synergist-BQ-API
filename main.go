@@ -63,26 +63,34 @@ func getTables(client *bigquery.Client, datasetName string) (*bigquery.Table, *b
 }
 
 
-func loadProjectData(rw http.ResponseWriter, req *http.Request) {
+func loadProjectData(res http.ResponseWriter, req *http.Request) {
   u := projects.Uploader()
   decoder := json.NewDecoder(req.Body)
   var projectData schema.Project
   _ = decoder.Decode(&projectData)
   if err := u.Put(CONTEXT, projectData); err != nil {
     log.Fatalf("Failed to load project data: %v", err)
+    res.WriteHeader(http.StatusInternalServerError)
+    res.Write([]byte("500 - Failed to save Project Data!"))
   }
   fmt.Println(projectData)
+  res.WriteHeader(http.StatusOK)
+  res.Write([]byte("Success!"))
   defer req.Body.Close()
 }
 
-func loadUserData(rw http.ResponseWriter, req *http.Request) {
+func loadUserData(res http.ResponseWriter, req *http.Request) {
   u := users.Uploader()
   decoder := json.NewDecoder(req.Body)
   var userData schema.User
   _ = decoder.Decode(&userData)
   if err := u.Put(CONTEXT, userData); err != nil {
     log.Fatalf("Failed to load user data: %v", err)
+    res.WriteHeader(http.StatusInternalServerError)
+    res.Write([]byte("500 - Failed to save User Data!"))
   }
   fmt.Println(userData)
+  res.WriteHeader(http.StatusOK)
+  res.Write([]byte("Success!"))
   defer req.Body.Close()
 }

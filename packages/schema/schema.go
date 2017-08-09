@@ -23,9 +23,9 @@ type Project struct {
           Files    []string `json:"files"`
         } `json:"sample"`
       } `json:"rawdata"`
-//      Analysis interface{} `json:"analysis"`
+      Analysis struct{} `json:"analysis"`
     } `json:"ngs"`
-//    Imaging interface{} `json:"imaging"`
+    Imaging struct{} `json:"imaging"`
   } `json:"type"`
 }
 
