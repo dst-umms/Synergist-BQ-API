@@ -22,20 +22,24 @@ var Info *log.Logger = log.New(os.Stdout, "INFO: ", log.Ldate|log.Ltime|log.Lsho
 
 // BigQuery globals 
 var CONTEXT = context.Background()
-var projects, users *bigquery.Table
+var bqClient *bigquery.Client 
+const PROJECT_ID string = "synergist-170903"
 const BQ_DATASET string = "devel"
+const PROJECT_TABLE = "project"
+const USER_TABLE = "user"
+var projects, users *bigquery.Table
 
+// Program entrypoint
 func main() {
-  client := getBqClient()
-  projects, users = getTables(client, BQ_DATASET)
+  bqClient := getBqClient()
+  projects, users = getTables()
   http.HandleFunc("/LoadProjectData", loadProjectData)
   http.HandleFunc("/LoadUserData", loadUserData)
   http.ListenAndServe(":8080", nil)
 }
 
 func getBqClient() (*bigquery.Client) {
-  projectID := "synergist-170903"
-  client, err := bigquery.NewClient(CONTEXT, projectID)
+  client, err := bigquery.NewClient(CONTEXT, PROJECT_ID)
   if err != nil {
     Error.Printf("Failed to create client: %v", err)
     os.Exit(1)
@@ -43,29 +47,29 @@ func getBqClient() (*bigquery.Client) {
   return client
 }
 
-func getTables(client *bigquery.Client, datasetName string) (*bigquery.Table, *bigquery.Table) {
-  if  _, err := client.Dataset(datasetName).Metadata(CONTEXT); err != nil {
-    if err := client.Dataset(datasetName).Create(CONTEXT); err != nil {
+func getTables() (*bigquery.Table, *bigquery.Table) {
+  if  _, err := bqClient.Dataset(BQ_DATASET).Metadata(CONTEXT); err != nil {
+    if err := bqClient.Dataset(BQ_DATASET).Create(CONTEXT); err != nil {
       Error.Printf("Failed to create dataset: %v", err)
       os.Exit(1)
     }
   }
 
-  projects := client.Dataset(datasetName).Table("project")
+  projects := bqClient.Dataset(BQ_DATASET).Table(PROJECT_TABLE)
   projectSchema, _ :=  bigquery.InferSchema(schema.Project{})
-  users := client.Dataset(datasetName).Table("user")
+  users := bqClient.Dataset(BQ_DATASET).Table(USER_TABLE)
   userSchema, _ :=  bigquery.InferSchema(schema.User{})
 
   if _, err := projects.Metadata(CONTEXT); err != nil {
     if err := projects.Create(CONTEXT, projectSchema); err != nil {
-      Error.Printf("Failed to create 'projects' table: %v", err)
+      Error.Printf("Failed to create '%s' table: %v", PROJECT_TABLE, err)
       os.Exit(1)
     }
   }
 
   if _, err := users.Metadata(CONTEXT); err != nil {
     if err := users.Create(CONTEXT, userSchema); err != nil {
-      Error.Printf("Failed to create 'users' table: %v", err)
+      Error.Printf("Failed to create '%s' table: %v", USER_TABLE, err)
       os.Exit(1)
     }
   }
@@ -102,6 +106,13 @@ func loadUserData(res http.ResponseWriter, req *http.Request) {
     Error.Printf("Failed to save user data: %v", userData)
   } else {
     Info.Printf("Saved user data: %v", userData)
+    // Fetch all the projects associated with the userData.Email
+    queryString := fmt.Sprintf(`
+      SELECT name, desc FROM [%s:%s.%s] WHERE owner = '%s'
+    `, PROJECT_ID, BQ_DATASET, PROJECT_TABLE, userData.Email)
+    query := bqClient.Query(queryString)
+    //query.QueryConfig.UseStandardSQL = true
+    iter, _ := query.Read(CONTEXT)
     res.WriteHeader(http.StatusOK)
     res.Write([]byte("Success!"))
   }
