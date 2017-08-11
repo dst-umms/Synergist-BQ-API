@@ -31,10 +31,11 @@ var projects, users *bigquery.Table
 
 // Program entrypoint
 func main() {
-  bqClient := getBqClient()
+  bqClient = getBqClient()
   projects, users = getTables()
-  http.HandleFunc("/LoadProjectData", loadProjectData)
-  http.HandleFunc("/LoadUserData", loadUserData)
+  http.HandleFunc("/CreateUser", CreateUser)
+  http.HandleFunc("/CreateProject", CreateProject)
+  http.HandleFunc("/GetProjects", GetProjects)
   http.ListenAndServe(":8080", nil)
 }
 
@@ -78,43 +79,67 @@ func getTables() (*bigquery.Table, *bigquery.Table) {
 }
 
 
-func loadProjectData(res http.ResponseWriter, req *http.Request) {
+func CreateProject(res http.ResponseWriter, req *http.Request) {
   u := projects.Uploader()
   decoder := json.NewDecoder(req.Body)
   var projectData schema.Project
   _ = decoder.Decode(&projectData)
   if err := u.Put(CONTEXT, projectData); err != nil {
     res.WriteHeader(http.StatusInternalServerError)
-    res.Write([]byte("500 - Failed to save Project Data!"))
+    res.Write([]byte("Error"))
     Error.Printf("Failed to save project data: %v", projectData)
   } else {
     Info.Printf("Saved project data: %v", projectData)
     res.WriteHeader(http.StatusOK)
-    res.Write([]byte("Success!"))
+    res.Write([]byte("Success"))
   }
   defer req.Body.Close()
 }
 
-func loadUserData(res http.ResponseWriter, req *http.Request) {
+func GetProjects(res http.ResponseWriter, req *http.Request) {
+  decoder := json.NewDecoder(req.Body)
+  var userData schema.User
+  _ = decoder.Decode(&userData)
+  // Fetch all the projects associated with the userData.Email
+  queryString := fmt.Sprintf(`
+    SELECT Name, Desc FROM [%s:%s.%s] WHERE Owner = '%s'
+  `, PROJECT_ID, BQ_DATASET, PROJECT_TABLE, userData.Email)
+  query := bqClient.Query(queryString)
+  query.QueryConfig.UseStandardSQL = false // the above query only works with legacy SQL
+  iter, _ := query.Read(CONTEXT)
+  type UserProject struct {
+    Name  string  `json:"name"`
+    Desc  string  `json:"desc"`
+  }
+  var result struct {
+    Data []UserProject  `json:"data"`
+  }
+  for {
+    var current UserProject
+    err := iter.Next(&current)
+    if err != nil {
+      break
+    }
+    result.Data = append(result.Data, current)
+  }
+  jsonData, _ := json.Marshal(result)
+  res.WriteHeader(http.StatusOK)
+  res.Write(jsonData)
+}
+
+func CreateUser(res http.ResponseWriter, req *http.Request) {
   u := users.Uploader()
   decoder := json.NewDecoder(req.Body)
   var userData schema.User
   _ = decoder.Decode(&userData)
   if err := u.Put(CONTEXT, userData); err != nil {
     res.WriteHeader(http.StatusInternalServerError)
-    res.Write([]byte("500 - Failed to save User Data!"))
+    res.Write([]byte("Error"))
     Error.Printf("Failed to save user data: %v", userData)
   } else {
     Info.Printf("Saved user data: %v", userData)
-    // Fetch all the projects associated with the userData.Email
-    queryString := fmt.Sprintf(`
-      SELECT name, desc FROM [%s:%s.%s] WHERE owner = '%s'
-    `, PROJECT_ID, BQ_DATASET, PROJECT_TABLE, userData.Email)
-    query := bqClient.Query(queryString)
-    //query.QueryConfig.UseStandardSQL = true
-    iter, _ := query.Read(CONTEXT)
     res.WriteHeader(http.StatusOK)
-    res.Write([]byte("Success!"))
+    res.Write([]byte("Success"))
   }
   defer req.Body.Close()
 }
