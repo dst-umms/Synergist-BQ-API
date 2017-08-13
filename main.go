@@ -125,6 +125,7 @@ func GetProjects(res http.ResponseWriter, req *http.Request) {
   jsonData, _ := json.Marshal(result)
   res.WriteHeader(http.StatusOK)
   res.Write(jsonData)
+  defer req.Body.Close()
 }
 
 func CreateUser(res http.ResponseWriter, req *http.Request) {
